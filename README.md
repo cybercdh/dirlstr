@@ -26,6 +26,8 @@ or
 $ cat <file> | dirlstr
 ```
 
+If a URL is found to expose a Directory Listing, it will be printed to the console.
+
 ### Options
 
 ```
