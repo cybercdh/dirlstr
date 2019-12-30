@@ -19,8 +19,11 @@ go get -u github.com/cybercdh/dirlstr
 ## Usage
 
 ```
-dirlstr <domain>
-$ cat urls.txt | dirlstr
+dirlstr <url>
+
+or 
+
+$ cat <file> | dirlstr
 
 Usage of dirlstr:
   -c int
