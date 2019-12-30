@@ -38,5 +38,5 @@ Usage of dirlstr:
 ```
 
 ## Thanks
-This code was heavily inspired by @tomnomnom. 
+This code was heavily inspired by [@tomnomnom.](https://github.com/tomnomnom) 
 In the immortal words of Russ Hanneman....."that guy f&ast;&ast;ks"
