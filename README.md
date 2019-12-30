@@ -20,9 +20,9 @@ go get -u github.com/cybercdh/dirlstr
 
 ```
 $ dirlstr <url>
-
+```
 or 
-
+```
 $ cat <file> | dirlstr
 
 Usage of dirlstr:
