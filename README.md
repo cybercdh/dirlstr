@@ -21,7 +21,6 @@ go get -u github.com/cybercdh/dirlstr
 ```
 dirlstr <domain>
 $ cat urls.txt | dirlstr
-```
 
 Usage of dirlstr:
   -c int
@@ -29,7 +28,7 @@ Usage of dirlstr:
   -t int
     	timeout (milliseconds) (default 10000)
   -v	Get more info on URL attempts
-
+'''
 ## Thanks
 This code was heavily inspired by @tomnomnom. 
 In the immortal words of Russ Hanneman....."that guy f&ast;&ast;ks"
