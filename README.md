@@ -19,7 +19,7 @@ go get -u github.com/cybercdh/dirlstr
 ## Usage
 
 ```
-dirlstr <url>
+$ dirlstr <url>
 
 or 
 
