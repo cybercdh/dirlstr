@@ -24,7 +24,11 @@ $ dirlstr <url>
 or 
 ```
 $ cat <file> | dirlstr
+```
 
+### Options
+
+```
 Usage of dirlstr:
   -c int
     	set the concurrency level (default 20)
