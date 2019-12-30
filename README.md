@@ -1,6 +1,6 @@
 # dirlstr
 
-Finds Directory Listing's from a list of URLs by traversing the URL paths, e.g.
+Finds Directory Listings from a list of URLs by traversing the URL paths, e.g.
 
 ```
   https://example.com/foo/bar/baz
