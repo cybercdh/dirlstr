@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
@@ -97,8 +98,16 @@ func main() {
 		}()
 	}
 
-	// accept urls on stdin
-	sc := bufio.NewScanner(os.Stdin)
+	var input_urls io.Reader
+	input_urls = os.Stdin
+
+	arg_url := flag.Arg(0)
+	if arg_url != "" {
+		input_urls = strings.NewReader(arg_url)
+	}
+
+	// sc := bufio.NewScanner(os.Stdin)
+	sc := bufio.NewScanner(input_urls)
 
 	// keep track of urls we've seen
 	seen := make(map[string]bool)
