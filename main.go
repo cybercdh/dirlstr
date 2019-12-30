@@ -47,7 +47,7 @@ func main() {
 
 	// verbose flag
 	var verbose bool
-	flag.BoolVar(&verbose, "v", false, "output errors to stderr")
+	flag.BoolVar(&verbose, "v", false, "Get more info on URL attempts")
 
 	flag.Parse()
 
@@ -175,7 +175,7 @@ func isDirectoryListing (client *http.Client, url string) bool {
 		if err != nil {
 				return false
 		}
-		
+
 		bodyString := string(bodyBytes)
 
 		// look for Directory Listing, if found return true
