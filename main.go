@@ -106,7 +106,6 @@ func main() {
 		input_urls = strings.NewReader(arg_url)
 	}
 
-	// sc := bufio.NewScanner(os.Stdin)
 	sc := bufio.NewScanner(input_urls)
 
 	// keep track of urls we've seen
