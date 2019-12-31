@@ -3,6 +3,7 @@
 dirlstr
 - given a list of urls from stdin, dirlstr will traverse the url paths and look for directory listing.
 - where directory listing is found, results are output to the console.
+- also checks for an open S3 bucket.
 
 e.g. 
 $ cat urls.txt | dirlstr
@@ -201,8 +202,8 @@ func isDirectoryListing (client *http.Client, url string) bool {
 
 		bodyString := string(bodyBytes)
 
-		// look for Directory Listing, if found return true
-		if (strings.Contains(bodyString, "Index of")) {
+		// look for Directory Listing or an open S3 Bucket, if found return true
+		if ( strings.Contains(bodyString, "Index of") || strings.Contains(bodyString, "ListBucketResult xmlns=") ) {
 			return true
 		}
 

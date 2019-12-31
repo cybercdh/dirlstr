@@ -1,6 +1,6 @@
 # dirlstr
 
-Finds Directory Listings from a list of URLs by traversing the URL paths, e.g.
+Finds Directory Listings or Open S3 Buckets from a list of URLs by traversing the URL paths, e.g.
 
 ```
   https://example.com/foo/bar/baz
@@ -26,7 +26,7 @@ or
 $ cat <file> | dirlstr
 ```
 
-If a URL is found to expose a Directory Listing, it will be printed to the console.
+If a URL is found to expose a Directory Listing / open S3 Bucket, it will be printed to the console.
 
 ### Options
 
