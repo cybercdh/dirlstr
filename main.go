@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -89,7 +88,11 @@ func main() {
 
 				// if Directory Listing is found, print the URL
 				if isDirectoryListing(client, url) {
-					fmt.Printf("%s\n",url)
+					if verbose {
+						fmt.Printf("[+]	Directory Listing Found at %s\n", url)
+					} else {
+						fmt.Printf("%s\n",url)	
+					}
 					continue
 				}
 
@@ -114,20 +117,25 @@ func main() {
 	for sc.Scan() {
 
 		// parse each url
-		_url := url.QueryEscape(sc.Text())
+		// note - url encodings are weird. look at how to parse edge cases.
+		// _url := url.QueryEscape(sc.Text())
+		_url := sc.Text()
 
 		u,err := url.Parse(_url)
 		if err != nil {
-			log.Fatal(err)
+			if verbose {
+				fmt.Printf("[!]	Error processing %s\n", _url)
+			}
+			continue
 		}
 
 		// split the paths from the parsed url
-		paths := strings.Split(u.Path, "/")
+		paths := strings.Split(u.EscapedPath(), "/")
 
 		// iterate over the paths slice to traverse and send to urls channel
 		for i := 0; i < len(paths); i++ {
 		    path := paths[:len(paths)-i]
-		    tmp_url := fmt.Sprintf(u.Scheme + u.Host + strings.Join(path,"/")) + "/"	
+		    tmp_url := fmt.Sprintf(u.Scheme +"://" + u.Host + strings.Join(path,"/"))
 
 		    // if we've seen the url already, keep moving
 		    if _, ok := seen[tmp_url]; ok {
