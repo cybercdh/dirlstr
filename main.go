@@ -89,7 +89,7 @@ func main() {
 				// if Directory Listing is found, print the URL
 				if isDirectoryListing(client, url) {
 					if verbose {
-						fmt.Printf("[+]	Directory Listing Found at %s\n", url)
+						fmt.Printf("[*]	Directory Listing Found at %s\n", url)
 					} else {
 						fmt.Printf("%s\n",url)	
 					}
@@ -121,6 +121,13 @@ func main() {
 		// _url := url.QueryEscape(sc.Text())
 		_url := sc.Text()
 
+		if !strings.HasPrefix(_url, "http") {
+			if verbose {
+				fmt.Printf("[!]	%s is not in the required format\n", _url)
+			}
+			continue
+		}
+
 		u,err := url.Parse(_url)
 		if err != nil {
 			if verbose {
@@ -130,7 +137,7 @@ func main() {
 		}
 
 		// split the paths from the parsed url
-		paths := strings.Split(u.EscapedPath(), "/")
+		paths := strings.Split(u.Path, "/")
 
 		// iterate over the paths slice to traverse and send to urls channel
 		for i := 0; i < len(paths); i++ {
@@ -140,7 +147,7 @@ func main() {
 		    // if we've seen the url already, keep moving
 		    if _, ok := seen[tmp_url]; ok {
 		    	if verbose {
-		    		fmt.Printf("Already seen %s\n", tmp_url)	
+		    		fmt.Printf("[-]	Already seen %s\n", tmp_url)	
 		    	}
 		    	continue
 		    }
@@ -149,7 +156,7 @@ func main() {
 		    seen[tmp_url] = true
 
 		    if verbose{
-		    	fmt.Printf("Attempting: %s\n",tmp_url)	
+		    	fmt.Printf("[+]	Attempting: %s\n",tmp_url)	
 		    }
 		    
 		    // feed the channel
@@ -163,7 +170,7 @@ func main() {
 
 	// check there were no errors reading stdin (unlikely)
 	if err := sc.Err(); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to read input: %s\n", err)
+		fmt.Fprintf(os.Stderr, "[!]	failed to read input: %s\n", err)
 	}
 
 	// wait until all the workers have finished
