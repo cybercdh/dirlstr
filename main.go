@@ -118,15 +118,11 @@ func main() {
 	for sc.Scan() {
 
 		// parse each url
-		// note - url encodings are weird. look at how to parse edge cases.
-		// _url := url.QueryEscape(sc.Text())
 		_url := sc.Text()
 
-		if !strings.HasPrefix(_url, "http") {
-			if verbose {
-				fmt.Printf("[!]	%s is not in the required format\n", _url)
-			}
-			continue
+		// check if the subdomain is prefixed correctly
+		if !strings.HasPrefix(sc.Text(), "http") {
+			_url = "http://" + _url
 		}
 
 		u,err := url.Parse(_url)
