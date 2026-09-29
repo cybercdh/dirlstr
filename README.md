@@ -13,7 +13,7 @@ Finds Directory Listings or Open S3 Buckets from a list of URLs by traversing th
 If you have Go installed and configured (i.e. with `$GOPATH/bin` in your `$PATH`):
 
 ```
-go get -u github.com/cybercdh/dirlstr
+go install github.com/cybercdh/dirlstr@latest
 ```
 
 ## Usage
@@ -26,7 +26,7 @@ or
 $ cat <file> | dirlstr
 ```
 
-If a URL is found to expose a Directory Listing / open S3 Bucket, it will be printed to the console.
+If a URL is found to expose a Directory Listing or an open storage bucket (S3, GCS, or Azure), it will be printed to the console. Every parent path is checked in both `/dir` and `/dir/` form, since most servers redirect the first to the second and redirects are not followed. Verbose output goes to stderr, so stdout stays a clean list of hits when piped.
 
 ### Options
 
