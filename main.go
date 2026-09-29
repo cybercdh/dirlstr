@@ -5,7 +5,7 @@ dirlstr
 - where directory listing is found, results are output to the console.
 - also checks for an open S3 bucket.
 
-e.g. 
+e.g.
 $ cat urls.txt | dirlstr
 
 options:
@@ -22,11 +22,11 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/tls"
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -36,26 +36,44 @@ import (
 	"time"
 )
 
-func main() {
+// maxBodyBytes caps how much of a response is read. A listing marker sits
+// near the top of the page, so 1 MiB is plenty and a hostile or huge body
+// cannot exhaust memory across the worker pool.
+const maxBodyBytes = 1 << 20
 
-	// concurrency flag
+// listingMarkers are lower-cased fragments that identify an autoindex page or
+// an open storage bucket. Kept specific on purpose: the old bare "Index of"
+// check matched any page that happened to contain those words.
+var listingMarkers = [][]byte{
+	[]byte("<title>index of"),          // Apache, nginx, lighttpd, Caddy
+	[]byte("<h1>index of"),             // Apache without a title
+	[]byte("index of /"),               // reskinned autoindex pages
+	[]byte("directory listing for"),    // Python http.server, Twisted
+	[]byte("[to parent directory]"),    // IIS
+	[]byte("<listbucketresult xmlns="), // S3 and GCS
+	[]byte("<enumerationresults"),      // Azure blob containers
+}
+
+func main() {
 	var concurrency int
 	flag.IntVar(&concurrency, "c", 20, "set the concurrency level")
 
-	// timeout flag
 	var to int
 	flag.IntVar(&to, "t", 10000, "timeout (milliseconds)")
 
-	// verbose flag
 	var verbose bool
 	flag.BoolVar(&verbose, "v", false, "Get more info on URL attempts")
 
 	flag.Parse()
 
-	// make an actual time.Duration out of the timeout
-	timeout := time.Duration(to * 1000000)
+	if concurrency < 1 {
+		fmt.Fprintf(os.Stderr, "[!]\t-c must be at least 1 (got %d)\n", concurrency)
+		os.Exit(2)
+	}
 
-	var tr = &http.Transport{
+	timeout := time.Duration(to) * time.Millisecond
+
+	tr := &http.Transport{
 		MaxIdleConns:      30,
 		IdleConnTimeout:   time.Second,
 		DisableKeepAlives: true,
@@ -66,149 +84,150 @@ func main() {
 		}).DialContext,
 	}
 
-	re := func(req *http.Request, via []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
-
+	// Redirects are deliberately not followed: a 301 from /dir to /dir/ or a
+	// bounce to a login page must not be mistaken for the page we asked for.
+	// The trailing slash variant is requested explicitly instead (see below).
 	client := &http.Client{
-		Transport:     tr,
-		CheckRedirect: re,
-		Timeout:       timeout,
+		Transport: tr,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		Timeout: timeout,
 	}
 
-	// make a urls channel
 	urls := make(chan string)
 
-	// spin up a bunch of workers
 	var wg sync.WaitGroup
 	for i := 0; i < concurrency; i++ {
 		wg.Add(1)
-
 		go func() {
-			for url := range urls {
-
-				// if Directory Listing is found, print the URL
-				if isDirectoryListing(client, url) {
+			defer wg.Done()
+			for u := range urls {
+				if isDirectoryListing(client, u) {
 					if verbose {
-						fmt.Printf("[*]	Directory Listing Found at %s\n", url)
+						fmt.Printf("[*]\tDirectory Listing Found at %s\n", u)
 					} else {
-						fmt.Printf("%s\n",url)	
+						fmt.Println(u)
 					}
-					continue
 				}
-
 			}
-			wg.Done()
 		}()
 	}
 
-	var input_urls io.Reader
-	input_urls = os.Stdin
-
-	arg_url := flag.Arg(0)
-	if arg_url != "" {
-		input_urls = strings.NewReader(arg_url)
+	var input io.Reader = os.Stdin
+	if arg := flag.Arg(0); arg != "" {
+		input = strings.NewReader(arg)
 	}
 
-	sc := bufio.NewScanner(input_urls)
-
-	// keep track of urls we've seen
+	// Diagnostics go to stderr so stdout stays a clean list of hits when piped.
 	seen := make(map[string]bool)
-	
-	for sc.Scan() {
-
-		// parse each url
-		_url := sc.Text()
-
-		// check if the subdomain is prefixed correctly
-		if !strings.HasPrefix(sc.Text(), "http") {
-			_url = "http://" + _url
-		}
-
-		u,err := url.Parse(_url)
-		if err != nil {
+	enqueue := func(u string) {
+		if seen[u] {
 			if verbose {
-				fmt.Printf("[!]	Error processing %s\n", _url)
+				fmt.Fprintf(os.Stderr, "[-]\tAlready seen %s\n", u)
 			}
-			continue
+			return
 		}
-
-		// split the paths from the parsed url
-		paths := strings.Split(u.Path, "/")
-
-		// iterate over the paths slice to traverse and send to urls channel
-		for i := 0; i < len(paths); i++ {
-		    path := paths[:len(paths)-i]
-		    tmp_url := fmt.Sprintf(u.Scheme +"://" + u.Host + strings.Join(path,"/"))
-
-		    // if we've seen the url already, keep moving
-		    if _, ok := seen[tmp_url]; ok {
-		    	if verbose {
-		    		fmt.Printf("[-]	Already seen %s\n", tmp_url)	
-		    	}
-		    	continue
-		    }
-
-		    // add to seen
-		    seen[tmp_url] = true
-
-		    if verbose{
-		    	fmt.Printf("[+]	Attempting: %s\n",tmp_url)	
-		    }
-		    
-		    // feed the channel
-		    urls <- tmp_url
+		seen[u] = true
+		if verbose {
+			fmt.Fprintf(os.Stderr, "[+]\tAttempting: %s\n", u)
 		}
-
+		urls <- u
 	}
 
-	// once all urls are sent, close the channel
+	sc := bufio.NewScanner(input)
+	for sc.Scan() {
+		for _, u := range expandPaths(sc.Text()) {
+			enqueue(u)
+		}
+	}
+
 	close(urls)
 
-	// check there were no errors reading stdin (unlikely)
 	if err := sc.Err(); err != nil {
-		fmt.Fprintf(os.Stderr, "[!]	failed to read input: %s\n", err)
+		fmt.Fprintf(os.Stderr, "[!]\tfailed to read input: %s\n", err)
 	}
 
-	// wait until all the workers have finished
 	wg.Wait()
+}
 
-} 
+// expandPaths turns one input line into every URL to probe: the URL itself,
+// each parent path up to the host root, and the trailing slash form of each
+// (servers answer a 301 for /dir, which we do not follow, and the listing for
+// /dir/). Blank lines, comments, and unparsable URLs yield nothing. A bare
+// host/path without a scheme gets http://.
+func expandPaths(line string) []string {
+	line = strings.TrimSpace(line)
+	if line == "" || strings.HasPrefix(line, "#") {
+		return nil
+	}
+	if !strings.Contains(line, "://") {
+		line = "http://" + line
+	}
+	u, err := url.Parse(line)
+	if err != nil || u.Host == "" {
+		return nil
+	}
+	base := u.Scheme + "://" + u.Host
+	// EscapedPath keeps percent-encoding intact so the request goes out as it
+	// was given rather than with a decoded, possibly ambiguous, path.
+	parts := strings.Split(u.EscapedPath(), "/")
 
-func isDirectoryListing (client *http.Client, url string) bool {
-	// perform the GET request
-	req, err := http.NewRequest("GET", url, nil)
+	var out []string
+	add := func(s string) {
+		for _, existing := range out {
+			if existing == s {
+				return
+			}
+		}
+		out = append(out, s)
+	}
+	for i := 0; i < len(parts); i++ {
+		p := strings.Join(parts[:len(parts)-i], "/")
+		add(base + p)
+		if !strings.HasSuffix(p, "/") {
+			add(base + p + "/")
+		}
+	}
+	return out
+}
+
+func isDirectoryListing(client *http.Client, target string) bool {
+	req, err := http.NewRequest(http.MethodGet, target, nil)
 	if err != nil {
 		return false
 	}
 	// set custom UA coz I'm 1337
 	req.Header.Set("User-Agent", "dirlstr/1.0")
-	req.Header.Add("Connection", "close")
 	req.Close = true
 
 	resp, err := client.Do(req)
-	
-	// assuming a response, read the body
-	if resp != nil {
-		
-		bodyBytes, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-				return false
-		}
-
-		bodyString := string(bodyBytes)
-
-		// look for Directory Listing or an open S3 Bucket, if found return true
-		if ( strings.Contains(bodyString, "Index of") || strings.Contains(bodyString, "ListBucketResult xmlns=") ) {
-			return true
-		}
-
-	}
-
 	if err != nil {
 		return false
 	}
+	defer resp.Body.Close()
 
-	// default return false
+	// A listing is a 200. Error pages and redirect bodies that mention
+	// "Index of" are not hits.
+	if resp.StatusCode != http.StatusOK {
+		return false
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBodyBytes))
+	if err != nil {
+		return false
+	}
+	return looksLikeListing(body)
+}
+
+// looksLikeListing reports whether body contains a known directory listing or
+// bucket listing marker, case insensitively.
+func looksLikeListing(body []byte) bool {
+	lowered := bytes.ToLower(body)
+	for _, m := range listingMarkers {
+		if bytes.Contains(lowered, m) {
+			return true
+		}
+	}
 	return false
 }
